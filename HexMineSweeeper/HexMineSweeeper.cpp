@@ -2,12 +2,16 @@
 //
 
 #include <iostream>
+#include <random>
 //TODO: win console include for color and stuff
 using namespace std;
 
+std::random_device rd;
+std::mt19937 rng(rd());
+
 struct hexLink
 {
-    uint8_t value; // 0-6 normal values of mines, 7+ are mines.
+    uint8_t value = 0; // 0-6 normal values of mines, 7+ are mines.
     bool revealed = false;
     hexLink* upL = nullptr;
     hexLink* up = nullptr;
@@ -18,19 +22,66 @@ struct hexLink
     // Proably would be more properly made if it had a creator for a adjacent hex that transfers the adjecents from the original hex
 };
 
+void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
+{
+    if (mines_unplaced == 0)
+        return;
+    if (spots_left == 0)
+        //throw "no more spots left to place mines";
+        return;
+    if (hex->value >= 7)
+        throw "hex already has a mine";
+    std::uniform_real_distribution<double> chance(0.0, 1.0);
+	double probability = (double)mines_unplaced / (double)spots_left;
+    if (chance(rng) < probability)
+        hex->value = 7; // set the value to a mine
+    else
+        return;
+    mines_unplaced--;
+    spots_left--;
+    // increment the values of adjacent hexes
+    if (hex->upL != nullptr && hex->upL->value < 7 && !hex->upL->revealed)
+        hex->upL->value++;
+    if (hex->up != nullptr && hex->up->value < 7 && !hex->upL->revealed)
+        hex->up->value++;
+    if (hex->upR != nullptr && hex->upR->value < 7 && !hex->upL->revealed)
+        hex->upR->value++;
+    if (hex->downR != nullptr && hex->downR->value < 7 && !hex->upL->revealed)
+        hex->downR->value++;
+    if (hex->down != nullptr && hex->down->value < 7 && !hex->upL->revealed)
+        hex->down->value++;
+    if (hex->downL != nullptr && hex->downL->value < 7 && !hex->upL->revealed)
+        hex->downL->value++;
+}
+
+/*enum linkDirection
+void linkHexes
+Perhaps a function that takes two hexes and a direction, and links them together in that direction would be better
+*/
+
+// I fucked up in math regarding decorative tiles? decorative tiles should be a thing only if console height in characters is odd
+// Actually it is better with no decorative tiles, leaving an empty row if console height is odd.
 hexLink initializeGrid(uint32_t width, uint32_t height)
 {
     if (width < 2 || height < 2)
 		throw "width and height must be greater than 2";
 
+    uint32_t mines_unplaced = mine_num;
+    uint32_t spots_left;
+    if (height % 2)
+        spots_left = width * height - width / 2 - width % 2; // parts of last row are purely decorative.
+    else
+        spots_left = width * height - width / 2;
+
     hexLink* start = new hexLink(); // uppermost left hexagon, it is second in the row
+    //placeMine(start, mines_unplaced, spots_left);
     hexLink* current = start;
     current->downL = new hexLink();
     current->downL->upR = current;
 	hexLink* first = current->downL; // first hexagon in the second 
     hexLink* upper = first;
     uint32_t line_counter = 0;
-	int k = 2; // k is the starting column for each line, since the first line has 2 already initialized
+    uint32_t k = 2; // k is the starting column for each line, since the first line has 2 already initialized
 
     for (uint32_t i = 0; i < height; i++) {
         if (i > 0)
@@ -38,6 +89,7 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
         upper = first;
         for (uint32_t j = k; j < width; j++) {
 			hexLink* new_hex = new hexLink();
+            //placeMine(new_hex, mines_unplaced, spots_left);
             //TODO: value generation and mine placement;
 
 			if (j % 2 == 0) {
@@ -72,6 +124,54 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
             current = first;
         }
     }
+	//Traverse the grid and place mines in the hexes that are not decorative, and increment the values of the adjacent hexes
+    current = start->downL;
+    for (uint32_t i = 0; i < height; i++)
+    {
+        first = current;
+        upper = first;
+        for (uint32_t j = 0; j < width; j++)
+        {
+            // decorative hex skip
+            if (i == (height - 1))
+                if (height % 2)
+                    if (j % 2)
+                        continue;
+                    else
+                    {
+						current->revealed = true;
+						current->value = 0;
+                    }
+                else
+                    if (j % 2)
+			placeMine(current, mines_unplaced, spots_left);
+            if (j % 2 == 0) {
+                current = current->downR;
+            }
+            else {
+                current = current->upR;
+            }
+        }
+        for (uint32_t j = 0; j < width; j++)
+        {
+            if (i % 2 == 0 && j % 2 == 1)
+            {
+                // decorative hex, skip
+            }
+            else
+            {
+                placeMine(current, mines_unplaced, spots_left);
+            }
+            if (j < width - 1)
+            {
+                if (j % 2 == 0)
+                    current = current->downR;
+                else
+                    current = current->upR;
+            }
+        }
+	}
+	//TODO: reset value of the decorative hexes to 0, and set their revealed to true, so they don't get printed or interacted with
     return *start;
 }
 
@@ -175,7 +275,6 @@ uint32_t mine_num = 0;
 
 int main()
 {
-
     //ine_num = height * width / 6
 	//TODO: hide cursor, get console size, figure out how to rewrite existing lines in console
 }
