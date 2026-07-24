@@ -3,7 +3,8 @@
 
 #include <iostream>
 #include <random>
-//TODO: win console include for color and stuff
+#include <windows.h>
+//#include <string> is this unnecessary?
 using namespace std;
 
 std::random_device rd;
@@ -19,7 +20,7 @@ struct hexLink
     hexLink* downR = nullptr;
     hexLink* down = nullptr;
     hexLink* downL = nullptr;
-    // Proably would be more properly made if it had a creator for a adjacent hex that transfers the adjecents from the original hex
+    // Proably would be more properly made if it had a creator for a adjacent hex that transfers the adjacents from the original hex
 };
 
 void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
@@ -31,26 +32,28 @@ void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
         return;
     if (hex->value >= 7)
         throw "hex already has a mine";
-    std::uniform_real_distribution<double> chance(0.0, 1.0);
-	double probability = (double)mines_unplaced / (double)spots_left;
-    if (chance(rng) < probability)
-        hex->value = 7; // set the value to a mine
+    std::uniform_int_distribution<int> dist(1, spots_left);
+    spots_left--;
+    if (dist(rng) <= mines_unplaced)
+    {
+        hex->value = 7;
+        --mines_unplaced;
+    }
     else
         return;
     mines_unplaced--;
-    spots_left--;
     // increment the values of adjacent hexes
-    if (hex->upL != nullptr && hex->upL->value < 7 && !hex->upL->revealed)
+    if (hex->upL != nullptr && hex->upL->value < 7)
         hex->upL->value++;
-    if (hex->up != nullptr && hex->up->value < 7 && !hex->upL->revealed)
+    if (hex->up != nullptr && hex->up->value < 7)
         hex->up->value++;
-    if (hex->upR != nullptr && hex->upR->value < 7 && !hex->upL->revealed)
+    if (hex->upR != nullptr && hex->upR->value < 7)
         hex->upR->value++;
-    if (hex->downR != nullptr && hex->downR->value < 7 && !hex->upL->revealed)
+    if (hex->downR != nullptr && hex->downR->value < 7)
         hex->downR->value++;
-    if (hex->down != nullptr && hex->down->value < 7 && !hex->upL->revealed)
+    if (hex->down != nullptr && hex->down->value < 7)
         hex->down->value++;
-    if (hex->downL != nullptr && hex->downL->value < 7 && !hex->upL->revealed)
+    if (hex->downL != nullptr && hex->downL->value < 7)
         hex->downL->value++;
 }
 
@@ -59,28 +62,25 @@ void linkHexes
 Perhaps a function that takes two hexes and a direction, and links them together in that direction would be better
 */
 
-// I fucked up in math regarding decorative tiles? decorative tiles should be a thing only if console height in characters is odd
-// Actually it is better with no decorative tiles, leaving an empty row if console height is odd.
 hexLink initializeGrid(uint32_t width, uint32_t height)
 {
     if (width < 2 || height < 2)
 		throw "width and height must be greater than 2";
 
     uint32_t mines_unplaced = mine_num;
-    uint32_t spots_left;
-    if (height % 2)
-        spots_left = width * height - width / 2 - width % 2; // parts of last row are purely decorative.
-    else
-        spots_left = width * height - width / 2;
+    uint32_t spots_left = width * height;
+    //decorative tiles leftover
+    //if (height % 2)
+    //    spots_left = width * height - width / 2 - width % 2; // parts of last row are purely decorative.
+    //else
+    //    spots_left = width * height - width / 2;
 
     hexLink* start = new hexLink(); // uppermost left hexagon, it is second in the row
-    //placeMine(start, mines_unplaced, spots_left);
     hexLink* current = start;
     current->downL = new hexLink();
     current->downL->upR = current;
 	hexLink* first = current->downL; // first hexagon in the second 
     hexLink* upper = first;
-    uint32_t line_counter = 0;
     uint32_t k = 2; // k is the starting column for each line, since the first line has 2 already initialized
 
     for (uint32_t i = 0; i < height; i++) {
@@ -89,12 +89,9 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
         upper = first;
         for (uint32_t j = k; j < width; j++) {
 			hexLink* new_hex = new hexLink();
-            //placeMine(new_hex, mines_unplaced, spots_left);
-            //TODO: value generation and mine placement;
-
 			if (j % 2 == 0) {
                 current->downR = new_hex;
-                //current->downR->upL = current;
+                current->downR->upL = current; // this is kinda repeated for i>0
                 current = current->downR;
             }
             else {
@@ -132,57 +129,38 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
         upper = first;
         for (uint32_t j = 0; j < width; j++)
         {
-            // decorative hex skip
-            if (i == (height - 1))
-                if (height % 2)
-                    if (j % 2)
-                        continue;
-                    else
-                    {
-						current->revealed = true;
-						current->value = 0;
-                    }
-                else
-                    if (j % 2)
 			placeMine(current, mines_unplaced, spots_left);
-            if (j % 2 == 0) {
-                current = current->downR;
-            }
-            else {
-                current = current->upR;
-            }
-        }
-        for (uint32_t j = 0; j < width; j++)
-        {
-            if (i % 2 == 0 && j % 2 == 1)
-            {
-                // decorative hex, skip
-            }
-            else
-            {
-                placeMine(current, mines_unplaced, spots_left);
-            }
-            if (j < width - 1)
-            {
-                if (j % 2 == 0)
+			if (j < width - 1)
+                if (j % 2 == 0) {
                     current = current->downR;
-                else
+                }
+                else {
                     current = current->upR;
-            }
+                }
         }
 	}
-	//TODO: reset value of the decorative hexes to 0, and set their revealed to true, so they don't get printed or interacted with
     return *start;
 }
 
 void printGrid(hexLink* start, uint32_t width, uint32_t height)
 {
+    for (uint32_t i = 0; i < width; i++)
+    {
+        if (i % 4 == 3)
+            cout << "_";
+        else
+            cout << " ";
+	}
+    cout << endl;
     for (uint32_t i = 0; i < height; i++)
     {
         printGridLine(start, i, width);
         cout << endl;
 	}
+    //TODO check that last line is handled properly.
 }
+
+//erhm, is git not working?
 
 void printGridLine(hexLink* start, uint32_t line_num, uint32_t width)
 {
@@ -275,6 +253,77 @@ uint32_t mine_num = 0;
 
 int main()
 {
+    HANDLE hIn = GetStdHandle(STD_INPUT_HANDLE);
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+
+    DWORD mode;
+
+    GetConsoleMode(hIn, &mode);
+    mode |= ENABLE_MOUSE_INPUT;
+    mode &= ~ENABLE_QUICK_EDIT_MODE;
+    SetConsoleMode(hIn, mode);
+
+    INPUT_RECORD record;
+
+    DWORD eventsRead;
+
+    ReadConsoleInput(
+        hIn,
+        &record,
+        1,
+        &eventsRead
+    );
+
+    if (record.EventType == MOUSE_EVENT)
+    {
+        MOUSE_EVENT_RECORD mouse =
+            record.Event.MouseEvent;
+        if (mouse.dwButtonState &
+            FROM_LEFT_1ST_BUTTON_PRESSED)
+        {
+        }
+		mouse.dwMousePosition.X; //why this compiles but doesn't do anything is beyond me
+        mouse.dwMousePosition.Y; //and even more so how this autocomplete knows that this does nothing
+    }
+
+    if (record.EventType == MOUSE_EVENT)
+    {
+        MOUSE_EVENT_RECORD mouse =
+            record.Event.MouseEvent;
+
+        if (mouse.dwEventFlags == 0 &&
+            mouse.dwButtonState &
+            FROM_LEFT_1ST_BUTTON_PRESSED)
+        {
+            int x = mouse.dwMousePosition.X;
+            int y = mouse.dwMousePosition.Y;
+        }
+    }
+
+    // cursor
+    COORD pos;
+    pos.X = 15;
+    pos.Y = 8;
+    SetConsoleCursorPosition(
+        hOut,
+        pos
+    );
+
+    CONSOLE_CURSOR_INFO info;
+
+    GetConsoleCursorInfo(
+        hOut,
+        &info
+    );
+
+    info.bVisible = FALSE;//important
+    SetConsoleCursorInfo(
+        hOut,
+        &info
+    );
+
+    //Color and console size stuff can be left for later. TODO;
+
     //ine_num = height * width / 6
 	//TODO: hide cursor, get console size, figure out how to rewrite existing lines in console
 }
