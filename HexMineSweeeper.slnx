@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="HexMineSweeeper/HexMineSweeeper.vcxproj" />
+  <Project Path="HexMineSweeeper/HexMineSweeeper.vcxproj" Id="eb716f05-492e-42f5-9d81-1260bef7429c" />
 </Solution>

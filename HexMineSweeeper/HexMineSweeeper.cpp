@@ -10,6 +10,13 @@ using namespace std;
 std::random_device rd;
 std::mt19937 rng(rd());
 
+
+uint32_t mine_num;
+uint32_t spots_unrevealed;
+uint32_t width = 130;
+uint32_t height = 30;
+
+
 struct hexLink
 {
     uint8_t value = 0; // 0-6 normal values of mines, 7+ are mines.
@@ -22,6 +29,45 @@ struct hexLink
     hexLink* downL = nullptr;
     // Proably would be more properly made if it had a creator for a adjacent hex that transfers the adjacents from the original hex
 };
+
+
+// am confused on pointers again
+hexLink* getHexLink(hexLink* start, uint32_t line_num, uint32_t col_num)
+{
+    // is line num and col num from 0 or from 1? I think it is 1, maybe change that, TODO
+    auto hex_node = start->downL;
+    for (uint32_t i = 1; i < col_num; i++)
+    {
+        if (i % 2)
+            if (hex_node->upR != nullptr)
+                hex_node = hex_node->upR;
+            else
+                throw "col search error";
+        else if (hex_node->downR != nullptr)
+            hex_node = hex_node->downR;
+        else
+            throw "col search error";
+    }
+    for (uint32_t i = 1; i < line_num; i++)
+    {
+        if (hex_node->down != nullptr)
+            hex_node = hex_node->down;
+        else
+            throw "row search error";
+
+    }
+    return hex_node;
+}
+
+hexLink* getHexLinkByCoord(COORD coord, hexLink* start)
+{
+    if (coord.Y == 0 or coord.Y == height - 1)
+        return nullptr;
+    if (coord.X % 4 == 1 and coord.Y % 2 == 0 or coord.X % 4 == 3 and coord.Y % 2 == 1)
+        return getHexLink(start, (coord.Y - 1) / 2, coord.X / 2 + 1);
+    return nullptr;
+}
+
 
 void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
 {
@@ -142,27 +188,7 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
     return *start;
 }
 
-void printGrid(hexLink* start, uint32_t width, uint32_t height)
-{
-    for (uint32_t i = 0; i < width; i++)
-    {
-        if (i % 4 == 3)
-            cout << "_";
-        else
-            cout << " ";
-	}
-    cout << endl;
-    for (uint32_t i = 0; i < height; i++)
-    {
-        printGridLine(start, i, width);
-        cout << endl;
-	}
-    //TODO check that last line is handled properly.
-}
-
-//erhm, is git not working?
-
-void printGridLine(hexLink* start, uint32_t line_num, uint32_t width)
+void printGridLine(hexLink* start, uint32_t line_num)
 {
     //TODO: add color and stuff
     if (line_num == 0)
@@ -177,20 +203,10 @@ void printGridLine(hexLink* start, uint32_t line_num, uint32_t width)
         cout << endl;
         return;
 	}
-    auto hex_node = start;
-	// TODO: add and use a function to get the hex node at a specific line and column
-    for (uint32_t i = 0; i < line_num; i++)
-    {
-        if (hex_node->downL != nullptr)
-            hex_node = hex_node->downL;
-        else if (hex_node->down != nullptr)
-            hex_node = hex_node->down;
-        else if (hex_node->downR != nullptr)
-            hex_node = hex_node->downR;
-        else
-            throw "no specified line exists";
-    }
+   
+	// TODO: change start to actually be start lol. and not 2, 1 and make it global.
 
+    hexLink* hex_node = nullptr;
     for (uint32_t i = 0; i < width; i++)
     {
         if (line_num % 2)
@@ -206,14 +222,24 @@ void printGridLine(hexLink* start, uint32_t line_num, uint32_t width)
                 cout << "/";
 				break;
             case 3:
-                if (start->revealed)
+                hex_node = getHexLinkByCoord({ 0, (short)line_num }, start);
+				if (hex_node == nullptr)
+					cout << " ";
+				else
+				{
+					if (hex_node->revealed)
+						cout << hex_node->value;
+					else
+						cout << "X";
+				}
+                if (hex_node->revealed)
                 {
                     if (hex_node->value == 0)
 						cout << " ";
                     else if (hex_node->value < 7)
                         cout << hex_node->value;
                     else
-                        cout << "*";
+                        cout << "*";//useless?
                 }
                 else
                     cout << "?";
@@ -226,7 +252,10 @@ void printGridLine(hexLink* start, uint32_t line_num, uint32_t width)
                 cout << "/";
                 break;
             case 1:
-                if (start->revealed)
+                hex_node = getHexLinkByCoord({ 0, (short)line_num }, start);
+                if (hex_node == nullptr)
+                    cout << " ";
+                else if (hex_node->revealed)
                 {
                     if (hex_node->value == 0)
                         cout << " ";
@@ -249,7 +278,38 @@ void printGridLine(hexLink* start, uint32_t line_num, uint32_t width)
     return;
 }
 
-uint32_t mine_num = 0;
+void printGrid(hexLink* start)
+{
+    for (uint32_t i = 0; i < height; i++)
+    {
+        printGridLine(start, i);
+        cout << endl;
+    }
+}
+
+void revealDeepSearch(hexLink* hex)
+{
+	if (hex->revealed)
+		return;
+	hex->revealed = true;
+    spots_unrevealed--;
+	if (hex->value == 0)
+	{
+		if (hex->up != nullptr)
+			revealDeepSearch(hex->up);
+		if (hex->upL != nullptr)
+			revealDeepSearch(hex->upL);
+		if (hex->upR != nullptr)
+			revealDeepSearch(hex->upR);
+		if (hex->down != nullptr)
+			revealDeepSearch(hex->down);
+		if (hex->downL != nullptr)
+			revealDeepSearch(hex->downL);
+		if (hex->downR != nullptr)
+			revealDeepSearch(hex->downR);
+	}
+    return; //is this unnecessary?
+}
 
 int main()
 {
@@ -263,52 +323,6 @@ int main()
     mode &= ~ENABLE_QUICK_EDIT_MODE;
     SetConsoleMode(hIn, mode);
 
-    INPUT_RECORD record;
-
-    DWORD eventsRead;
-
-    ReadConsoleInput(
-        hIn,
-        &record,
-        1,
-        &eventsRead
-    );
-
-    if (record.EventType == MOUSE_EVENT)
-    {
-        MOUSE_EVENT_RECORD mouse =
-            record.Event.MouseEvent;
-        if (mouse.dwButtonState &
-            FROM_LEFT_1ST_BUTTON_PRESSED)
-        {
-        }
-		mouse.dwMousePosition.X; //why this compiles but doesn't do anything is beyond me
-        mouse.dwMousePosition.Y; //and even more so how this autocomplete knows that this does nothing
-    }
-
-    if (record.EventType == MOUSE_EVENT)
-    {
-        MOUSE_EVENT_RECORD mouse =
-            record.Event.MouseEvent;
-
-        if (mouse.dwEventFlags == 0 &&
-            mouse.dwButtonState &
-            FROM_LEFT_1ST_BUTTON_PRESSED)
-        {
-            int x = mouse.dwMousePosition.X;
-            int y = mouse.dwMousePosition.Y;
-        }
-    }
-
-    // cursor
-    COORD pos;
-    pos.X = 15;
-    pos.Y = 8;
-    SetConsoleCursorPosition(
-        hOut,
-        pos
-    );
-
     CONSOLE_CURSOR_INFO info;
 
     GetConsoleCursorInfo(
@@ -316,16 +330,108 @@ int main()
         &info
     );
 
-    info.bVisible = FALSE;//important
+    info.bVisible = FALSE; //important
     SetConsoleCursorInfo(
         hOut,
         &info
     );
 
-    //Color and console size stuff can be left for later. TODO;
+    CONSOLE_SCREEN_BUFFER_INFO c_info;
 
-    //ine_num = height * width / 6
-	//TODO: hide cursor, get console size, figure out how to rewrite existing lines in console
+    GetConsoleScreenBufferInfo(
+        hOut,
+        &c_info
+    );
+
+    int width =
+        c_info.srWindow.Right -
+        c_info.srWindow.Left +
+        1;
+
+    int height =
+        c_info.srWindow.Bottom -
+        c_info.srWindow.Top +
+        1;
+
+    //Color and console resize stuff can be left for later. TODO;
+
+    mine_num = height * width / 6;
+	spots_unrevealed = height * width - mine_num;
+
+    //TODO, create the hexgrid by this point then print it.
+	hexLink start = initializeGrid(width, height);
+	printGrid(&start);
+
+    INPUT_RECORD record;
+
+    DWORD eventsRead;
+
+    bool game_ongoing = true;
+    
+    while (game_ongoing) {
+        ReadConsoleInput(
+            hIn,
+            &record,
+            1,
+            &eventsRead
+        );
+        if (record.EventType == KEY_EVENT)
+        {
+            KEY_EVENT_RECORD key = record.Event.KeyEvent;
+
+            if (key.bKeyDown &&
+                key.wVirtualKeyCode == VK_ESCAPE)
+            {
+                game_ongoing = false;
+            }
+        }
+
+        else if (record.EventType == MOUSE_EVENT)
+        {
+            MOUSE_EVENT_RECORD mouse =
+                record.Event.MouseEvent;
+
+            if (mouse.dwEventFlags == 0 &&
+                mouse.dwButtonState &
+                FROM_LEFT_1ST_BUTTON_PRESSED)
+            {
+                COORD hex_coord;
+                // im so lost in pointers
+				hexLink* target = getHexLinkByCoord(mouse.dwMousePosition, &start);
+				if (target->value == 7)
+				{
+                    //TODO: improve this
+					cout << "You hit a mine! Game over!" << endl;
+					game_ongoing = false;
+				}
+				else if (target->value == 0)
+					revealDeepSearch(target);
+                else
+                {
+					target->revealed = true;
+					spots_unrevealed--;
+                }
+                if (spots_unrevealed == 0)
+                {
+                    //TODO: improve this
+                    cout << "You win!" << endl;
+                    game_ongoing = false;
+                }
+				if (game_ongoing)
+				{
+                    // cursor reset
+                    COORD pos;
+                    pos.X = 0;
+                    pos.Y = 0;
+                    SetConsoleCursorPosition(
+                        hOut,
+                        pos
+                    );
+					printGrid(&start);
+				}
+            }
+        }
+    }
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
