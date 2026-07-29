@@ -13,7 +13,7 @@ std::mt19937 rng(rd());
 
 uint32_t mine_num;
 uint32_t spots_unrevealed;
-uint32_t width = 130;
+uint32_t width = 120;
 uint32_t height = 30;
 
 
@@ -35,7 +35,7 @@ struct hexLink
 hexLink* getHexLink(hexLink* start, uint32_t line_num, uint32_t col_num)
 {
     // is line num and col num from 0 or from 1? I think it is 1, maybe change that, TODO
-    auto hex_node = start->downL;
+    auto hex_node = start;
     for (uint32_t i = 1; i < col_num; i++)
     {
         if (i % 2)
@@ -108,7 +108,75 @@ void linkHexes
 Perhaps a function that takes two hexes and a direction, and links them together in that direction would be better
 */
 
-hexLink initializeGrid(uint32_t width, uint32_t height)
+hexLink* gridInit()
+{
+    uint32_t mines_unplaced = mine_num;
+    uint32_t spots_left = width * height;
+    hexLink* start = new hexLink(); // uppermost leftmost hexagon
+    hexLink* current = start;
+    hexLink* first = start;
+    hexLink* upper = start;
+    for (uint32_t i = 0; i < height; i++) {
+        if (i > 0) {
+            current = new hexLink();
+			current->up = upper;
+			upper->down = current;
+        }
+        first = current;
+        for (uint32_t j = 1; j < width; j++) {
+            hexLink* new_hex = new hexLink();
+            if (j % 2 == 0) {
+                current->downR = new_hex;
+                current->downR->upL = current; 
+                current = current->downR;
+                if (i > 0)
+                    upper = upper->downR;
+            }
+            else {
+                current->upR = new_hex;
+                current->upR->downL = current;
+                current = current->upR;
+                if (i > 0)
+                    upper = upper->upR;
+            }
+            if (i > 0) {
+                //TODO upper not working properly
+                current->up = upper;
+                upper->down = current; //getting exception here because upper is nullptr but logic-wise this shouldn't be the case
+                //if (upper->downR != nullptr) {
+                    current->upL = upper->downR;
+                    upper->downR = current;
+                //}
+                //if (upper->downL != nullptr) {
+                    current->upR = upper->downL;
+                    upper->downL = current;
+                //}
+            }
+        }
+        upper = first;
+    }
+    //Traverse the grid and place mines in the hexes that are not decorative, and increment the values of the adjacent hexes
+    current = start;
+    for (uint32_t i = 0; i < height; i++)
+    {
+        first = current;
+        for (uint32_t j = 0; j < width; j++)
+        {
+            placeMine(current, mines_unplaced, spots_left);
+            if (j < width - 1)
+                if (j % 2) {
+                    current = current->downR;
+                }
+                else {
+                    current = current->upR;
+                }
+        }
+        current = first->down;
+    }
+    return start;
+}
+
+hexLink* initializeGrid()
 {
     if (width < 2 || height < 2)
 		throw "width and height must be greater than 2";
@@ -132,10 +200,10 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
     for (uint32_t i = 0; i < height; i++) {
         if (i > 0)
 		    first = current;
-        upper = first;
+        
         for (uint32_t j = k; j < width; j++) {
 			hexLink* new_hex = new hexLink();
-			if (j % 2 == 0) {
+			if (j % 2) {
                 current->downR = new_hex;
                 current->downR->upL = current; // this is kinda repeated for i>0
                 current = current->downR;
@@ -145,17 +213,19 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
                 current->upR->downL = current;
                 current = current->upR;
             }
-            if (i > 0) {
+            if (i > 0 and upper != nullptr) {
                 current->up = upper;
                 current->upL = upper->downL;
-                upper->downL->downR = current;
+                if (upper->downL != nullptr)
+                    upper->downL->downR = current;
                 current->upR = upper->downR;
                 upper->down = current;
-                upper->downR->downL = current;
+                if (upper->downR != nullptr)
+                    upper->downR->downL = current;
                 if (j % 2 == 0)
                     upper = upper->downR;
                 else
-					upper = upper->downL;
+					upper = upper->downL;//wrong
             }
         }
         k = 1;
@@ -166,26 +236,27 @@ hexLink initializeGrid(uint32_t width, uint32_t height)
 			first = first->down;
             current = first;
         }
+        upper = first;
     }
 	//Traverse the grid and place mines in the hexes that are not decorative, and increment the values of the adjacent hexes
     current = start->downL;
     for (uint32_t i = 0; i < height; i++)
     {
         first = current;
-        upper = first;
         for (uint32_t j = 0; j < width; j++)
         {
 			placeMine(current, mines_unplaced, spots_left);
 			if (j < width - 1)
-                if (j % 2 == 0) {
+                if (j % 2) {
                     current = current->downR;
                 }
                 else {
                     current = current->upR;
                 }
         }
+        current = first->down;
 	}
-    return *start;
+    return start;
 }
 
 void printGridLine(hexLink* start, uint32_t line_num)
@@ -195,12 +266,11 @@ void printGridLine(hexLink* start, uint32_t line_num)
     {
         for (uint32_t i = 0; i < width; i++)
         {
-            if (i % 4 != 0)
+            if (i % 4 != 3)
                 cout << " ";
             else
                 cout << "_";
         }
-        cout << endl;
         return;
 	}
    
@@ -223,8 +293,11 @@ void printGridLine(hexLink* start, uint32_t line_num)
 				break;
             case 3:
                 hex_node = getHexLinkByCoord({ 0, (short)line_num }, start);
-				if (hex_node == nullptr)
-					cout << " ";
+                if (hex_node == nullptr)
+                {
+                    cout << " ";
+                    break;
+                }
 				else
 				{
 					if (hex_node->revealed)
@@ -254,7 +327,10 @@ void printGridLine(hexLink* start, uint32_t line_num)
             case 1:
                 hex_node = getHexLinkByCoord({ 0, (short)line_num }, start);
                 if (hex_node == nullptr)
+                {
                     cout << " ";
+                    break;
+                }
                 else if (hex_node->revealed)
                 {
                     if (hex_node->value == 0)
@@ -283,7 +359,8 @@ void printGrid(hexLink* start)
     for (uint32_t i = 0; i < height; i++)
     {
         printGridLine(start, i);
-        cout << endl;
+		if (i < height - 1)
+			cout << endl;
     }
 }
 
@@ -343,12 +420,12 @@ int main()
         &c_info
     );
 
-    int width =
+    width =
         c_info.srWindow.Right -
         c_info.srWindow.Left +
-        1;
+        1;// this did nothing? TODO
 
-    int height =
+    height =
         c_info.srWindow.Bottom -
         c_info.srWindow.Top +
         1;
@@ -359,8 +436,9 @@ int main()
 	spots_unrevealed = height * width - mine_num;
 
     //TODO, create the hexgrid by this point then print it.
-	hexLink start = initializeGrid(width, height);
-	printGrid(&start);
+    //TODO ask ai about pointers for structs because I am so confused
+	hexLink* start = gridInit();
+	printGrid(start);
 
     INPUT_RECORD record;
 
@@ -397,20 +475,22 @@ int main()
             {
                 COORD hex_coord;
                 // im so lost in pointers
-				hexLink* target = getHexLinkByCoord(mouse.dwMousePosition, &start);
-				if (target->value == 7)
-				{
-                    //TODO: improve this
-					cout << "You hit a mine! Game over!" << endl;
-					game_ongoing = false;
-				}
-				else if (target->value == 0)
-					revealDeepSearch(target);
-                else
-                {
-					target->revealed = true;
-					spots_unrevealed--;
-                }
+				hexLink* target = getHexLinkByCoord(mouse.dwMousePosition, start);
+                if (target != nullptr) {
+                    if (target->value == 7)
+                    {
+                        //TODO: improve this
+                        cout << "You hit a mine! Game over!" << endl;
+                        game_ongoing = false;
+                    }
+                    else if (target->value == 0)
+                        revealDeepSearch(target);
+                    else
+                    {
+                        target->revealed = true;
+                        spots_unrevealed--;
+                    }
+                }// maybe move this one if statement down
                 if (spots_unrevealed == 0)
                 {
                     //TODO: improve this
@@ -427,7 +507,7 @@ int main()
                         hOut,
                         pos
                     );
-					printGrid(&start);
+					printGrid(start);
 				}
             }
         }
