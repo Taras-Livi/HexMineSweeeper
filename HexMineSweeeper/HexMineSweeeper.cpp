@@ -13,14 +13,16 @@ std::mt19937 rng(rd());
 
 uint32_t mine_num;
 uint32_t spots_unrevealed;
-uint32_t width = 120;
-uint32_t height = 30;
+uint32_t c_width = 80;
+uint32_t c_height = 20;
+uint32_t width = 13;
+uint32_t height = 10;
 
 
 struct hexLink
 {
     uint8_t value = 0; // 0-6 normal values of mines, 7+ are mines.
-    bool revealed = false;
+    bool revealed = true;
     hexLink* upL = nullptr;
     hexLink* up = nullptr;
     hexLink* upR = nullptr;
@@ -61,10 +63,10 @@ hexLink* getHexLink(hexLink* start, uint32_t line_num, uint32_t col_num)
 
 hexLink* getHexLinkByCoord(COORD coord, hexLink* start)
 {
-    if (coord.Y == 0 or coord.Y == height - 1)
+    if (coord.Y == 0 or coord.Y == c_height - 1)
         return nullptr;
     if (coord.X % 4 == 1 and coord.Y % 2 == 0 or coord.X % 4 == 3 and coord.Y % 2 == 1)
-        return getHexLink(start, (coord.Y - 1) / 2, coord.X / 2 + 1);
+        return getHexLink(start, (coord.Y - 1) / 2, coord.X / 2);
     return nullptr;
 }
 
@@ -77,7 +79,7 @@ void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
         //throw "no more spots left to place mines";
         return;
     if (hex->value >= 7)
-        throw "hex already has a mine";
+        throw "hex already has a mine somehow";
     std::uniform_int_distribution<int> dist(1, spots_left);
     spots_left--;
     if (dist(rng) <= mines_unplaced)
@@ -87,7 +89,6 @@ void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
     }
     else
         return;
-    mines_unplaced--;
     // increment the values of adjacent hexes
     if (hex->upL != nullptr && hex->upL->value < 7)
         hex->upL->value++;
@@ -101,6 +102,7 @@ void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
         hex->down->value++;
     if (hex->downL != nullptr && hex->downL->value < 7)
         hex->downL->value++;
+    return;
 }
 
 /*enum linkDirection
@@ -112,6 +114,7 @@ hexLink* gridInit()
 {
     uint32_t mines_unplaced = mine_num;
     uint32_t spots_left = width * height;
+
     hexLink* start = new hexLink(); // uppermost leftmost hexagon
     hexLink* current = start;
     hexLink* first = start;
@@ -143,14 +146,14 @@ hexLink* gridInit()
                 //TODO upper not working properly
                 current->up = upper;
                 upper->down = current; //getting exception here because upper is nullptr but logic-wise this shouldn't be the case
-                //if (upper->downR != nullptr) {
+                if (upper->downR != nullptr) {
                     current->upL = upper->downR;
-                    upper->downR = current;
-                //}
-                //if (upper->downL != nullptr) {
+                    upper->downR->downL = current;
+                }
+                if (upper->downL != nullptr) {
                     current->upR = upper->downL;
-                    upper->downL = current;
-                //}
+                    upper->downL->downR = current;
+                }
             }
         }
         upper = first;
@@ -163,99 +166,17 @@ hexLink* gridInit()
         for (uint32_t j = 0; j < width; j++)
         {
             placeMine(current, mines_unplaced, spots_left);
-            if (j < width - 1)
+            if (j < width - 1) {
                 if (j % 2) {
                     current = current->downR;
                 }
                 else {
                     current = current->upR;
                 }
+            }
         }
         current = first->down;
     }
-    return start;
-}
-
-hexLink* initializeGrid()
-{
-    if (width < 2 || height < 2)
-		throw "width and height must be greater than 2";
-
-    uint32_t mines_unplaced = mine_num;
-    uint32_t spots_left = width * height;
-    //decorative tiles leftover
-    //if (height % 2)
-    //    spots_left = width * height - width / 2 - width % 2; // parts of last row are purely decorative.
-    //else
-    //    spots_left = width * height - width / 2;
-
-    hexLink* start = new hexLink(); // uppermost left hexagon, it is second in the row
-    hexLink* current = start;
-    current->downL = new hexLink();
-    current->downL->upR = current;
-	hexLink* first = current->downL; // first hexagon in the second 
-    hexLink* upper = first;
-    uint32_t k = 2; // k is the starting column for each line, since the first line has 2 already initialized
-
-    for (uint32_t i = 0; i < height; i++) {
-        if (i > 0)
-		    first = current;
-        
-        for (uint32_t j = k; j < width; j++) {
-			hexLink* new_hex = new hexLink();
-			if (j % 2) {
-                current->downR = new_hex;
-                current->downR->upL = current; // this is kinda repeated for i>0
-                current = current->downR;
-            }
-            else {
-                current->upR = new_hex;
-                current->upR->downL = current;
-                current = current->upR;
-            }
-            if (i > 0 and upper != nullptr) {
-                current->up = upper;
-                current->upL = upper->downL;
-                if (upper->downL != nullptr)
-                    upper->downL->downR = current;
-                current->upR = upper->downR;
-                upper->down = current;
-                if (upper->downR != nullptr)
-                    upper->downR->downL = current;
-                if (j % 2 == 0)
-                    upper = upper->downR;
-                else
-					upper = upper->downL;//wrong
-            }
-        }
-        k = 1;
-        if (i < height - 1) {
-            first->down = new hexLink();
-			first->down->up = first;
-            first->down->upR = first->downR;
-			first = first->down;
-            current = first;
-        }
-        upper = first;
-    }
-	//Traverse the grid and place mines in the hexes that are not decorative, and increment the values of the adjacent hexes
-    current = start->downL;
-    for (uint32_t i = 0; i < height; i++)
-    {
-        first = current;
-        for (uint32_t j = 0; j < width; j++)
-        {
-			placeMine(current, mines_unplaced, spots_left);
-			if (j < width - 1)
-                if (j % 2) {
-                    current = current->downR;
-                }
-                else {
-                    current = current->upR;
-                }
-        }
-        current = first->down;
-	}
     return start;
 }
 
@@ -264,7 +185,7 @@ void printGridLine(hexLink* start, uint32_t line_num)
     //TODO: add color and stuff
     if (line_num == 0)
     {
-        for (uint32_t i = 0; i < width; i++)
+        for (uint32_t i = 0; i < c_width; i++)
         {
             if (i % 4 != 3)
                 cout << " ";
@@ -277,7 +198,7 @@ void printGridLine(hexLink* start, uint32_t line_num)
 	// TODO: change start to actually be start lol. and not 2, 1 and make it global.
 
     hexLink* hex_node = nullptr;
-    for (uint32_t i = 0; i < width; i++)
+    for (uint32_t i = 0; i < c_width; i++)
     {
         if (line_num % 2)
             switch (i % 4)
@@ -292,25 +213,18 @@ void printGridLine(hexLink* start, uint32_t line_num)
                 cout << "/";
 				break;
             case 3:
-                hex_node = getHexLinkByCoord({ 0, (short)line_num }, start);
+                hex_node = getHexLinkByCoord({ (short)i, (short)line_num }, start);
                 if (hex_node == nullptr)
                 {
                     cout << " ";
                     break;
                 }
-				else
-				{
-					if (hex_node->revealed)
-						cout << hex_node->value;
-					else
-						cout << "X";
-				}
-                if (hex_node->revealed)
+				else if (hex_node->revealed)
                 {
                     if (hex_node->value == 0)
 						cout << " ";
                     else if (hex_node->value < 7)
-                        cout << hex_node->value;
+                        cout << (int)hex_node->value;
                     else
                         cout << "*";//useless?
                 }
@@ -325,7 +239,7 @@ void printGridLine(hexLink* start, uint32_t line_num)
                 cout << "/";
                 break;
             case 1:
-                hex_node = getHexLinkByCoord({ 0, (short)line_num }, start);
+                hex_node = getHexLinkByCoord({ (short)i, (short)line_num }, start);
                 if (hex_node == nullptr)
                 {
                     cout << " ";
@@ -336,7 +250,7 @@ void printGridLine(hexLink* start, uint32_t line_num)
                     if (hex_node->value == 0)
                         cout << " ";
                     else if (hex_node->value < 7)
-                        cout << hex_node->value;
+                        cout << (int)hex_node->value;
                     else
                         cout << "*";
                 }
@@ -356,10 +270,10 @@ void printGridLine(hexLink* start, uint32_t line_num)
 
 void printGrid(hexLink* start)
 {
-    for (uint32_t i = 0; i < height; i++)
+    for (uint32_t i = 0; i < c_height; i++)
     {
         printGridLine(start, i);
-		if (i < height - 1)
+		if (i < c_height - 1)
 			cout << endl;
     }
 }
@@ -420,16 +334,18 @@ int main()
         &c_info
     );
 
-    width =
+    c_width =
         c_info.srWindow.Right -
         c_info.srWindow.Left +
-        1;// this did nothing? TODO
+        1;
 
-    height =
+    c_height =
         c_info.srWindow.Bottom -
         c_info.srWindow.Top +
         1;
 
+	width = (c_width - 1) / 2;
+	height = (c_height - 2) / 2;
     //Color and console resize stuff can be left for later. TODO;
 
     mine_num = height * width / 6;
