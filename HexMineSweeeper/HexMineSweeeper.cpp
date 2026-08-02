@@ -40,7 +40,7 @@ hexLink* getHexLink(hexLink* start, uint32_t line_num, uint32_t col_num)
     hexLink* hex_node = start;//auto?
     for (uint32_t i = 0; i < col_num; i++)// this is wrong?
     {
-        if (i % 2 == 0) // this doesn't make any sense
+        if (i % 2) // this doesn't make any sense
             if (hex_node->upR != nullptr)
                 hex_node = hex_node->upR;
             else
@@ -74,6 +74,8 @@ hexLink* getHexLinkByCoord(COORD coord, hexLink* start)
 
 void placeMine(hexLink* hex, uint32_t& mines_unplaced, uint32_t& spots_left)
 {
+    if (hex == nullptr)
+        throw "nullptr";
     if (mines_unplaced == 0)
         return;
     if (spots_left == 0)
@@ -129,7 +131,7 @@ hexLink* gridInit()
         first = current;
         for (uint32_t j = 1; j < width; j++) {
             hexLink* new_hex = new hexLink();
-            if (j % 2 == 0) {
+            if (j % 2) {
                 current->downR = new_hex;
                 current->downR->upL = current; 
                 current = current->downR;
@@ -167,7 +169,7 @@ hexLink* gridInit()
         {
             placeMine(current, mines_unplaced, spots_left);
             if (j < width - 1) {
-                if (j % 2) {
+                if (j % 2 == 0) {
                     current = current->downR;
                 }
                 else {
@@ -338,8 +340,8 @@ int main()
 	height = (c_height - 2) / 2;
     //Color and console resize stuff can be left for later. TODO;
 
-    mine_num = height * width / 6;
-    //mine_num = 5;
+    //mine_num = height * width / 6;
+    mine_num = 5;
 	spots_unrevealed = height * width - mine_num;
 
     //TODO, create the hexgrid by this point then print it.
