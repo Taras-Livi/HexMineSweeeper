@@ -37,20 +37,21 @@ struct hexLink
 hexLink* getHexLink(hexLink* start, uint32_t line_num, uint32_t col_num)
 {
     // is line num and col num from 0 or from 1? I think it is 1, maybe change that, TODO
-    auto hex_node = start;
-    for (uint32_t i = 1; i < col_num; i++)
+    hexLink* hex_node = start;//auto?
+    for (uint32_t i = 0; i < col_num; i++)// this is wrong?
     {
-        if (i % 2)
+        if (i % 2 == 0) // this doesn't make any sense
             if (hex_node->upR != nullptr)
                 hex_node = hex_node->upR;
             else
                 throw "col search error";
-        else if (hex_node->downR != nullptr)
-            hex_node = hex_node->downR;
         else
-            throw "col search error";
+            if (hex_node->downR != nullptr)
+                hex_node = hex_node->downR;
+            else
+                throw "col search error";
     }
-    for (uint32_t i = 1; i < line_num; i++)
+    for (uint32_t i = 0; i < line_num; i++)// this is wrong?
     {
         if (hex_node->down != nullptr)
             hex_node = hex_node->down;
@@ -66,7 +67,7 @@ hexLink* getHexLinkByCoord(COORD coord, hexLink* start)
     if (coord.Y == 0 or coord.Y == c_height - 1)
         return nullptr;
     if (coord.X % 4 == 1 and coord.Y % 2 == 0 or coord.X % 4 == 3 and coord.Y % 2 == 1)
-        return getHexLink(start, (coord.Y - 1) / 2, coord.X / 2);
+        return getHexLink(start, (coord.Y - 1) / 2, (coord.X - 2) / 2);
     return nullptr;
 }
 
@@ -143,15 +144,14 @@ hexLink* gridInit()
                     upper = upper->upR;
             }
             if (i > 0) {
-                //TODO upper not working properly
                 current->up = upper;
-                upper->down = current; //getting exception here because upper is nullptr but logic-wise this shouldn't be the case
+                upper->down = current;
                 if (upper->downR != nullptr) {
-                    current->upL = upper->downR;
+                    current->upR = upper->downR;
                     upper->downR->downL = current;
                 }
                 if (upper->downL != nullptr) {
-                    current->upR = upper->downL;
+                    current->upL = upper->downL;
                     upper->downL->downR = current;
                 }
             }
@@ -172,7 +172,7 @@ hexLink* gridInit()
                 }
                 else {
                     current = current->upR;
-                }
+                }// could use ternary operator here.
             }
         }
         current = first->down;
@@ -180,8 +180,30 @@ hexLink* gridInit()
     return start;
 }
 
+void printHexValue(hexLink* hex_node, uint32_t i, uint32_t line_num, hexLink* start) {
+    hex_node = getHexLinkByCoord({ (short)i, (short)line_num }, start);
+    if (hex_node == nullptr)
+    {
+        cout << " ";
+        return;
+    }
+    else if (hex_node->revealed)
+    {
+        if (hex_node->value == 0)
+            cout << " ";
+        else if (hex_node->value < 7)
+            cout << (int)hex_node->value;
+        else
+            cout << "*";//useless?
+    }
+    else
+        cout << "?";
+    return;
+}
+
 void printGridLine(hexLink* start, uint32_t line_num)
 {
+    
     //TODO: add color and stuff
     if (line_num == 0)
     {
@@ -213,23 +235,7 @@ void printGridLine(hexLink* start, uint32_t line_num)
                 cout << "/";
 				break;
             case 3:
-                hex_node = getHexLinkByCoord({ (short)i, (short)line_num }, start);
-                if (hex_node == nullptr)
-                {
-                    cout << " ";
-                    break;
-                }
-				else if (hex_node->revealed)
-                {
-                    if (hex_node->value == 0)
-						cout << " ";
-                    else if (hex_node->value < 7)
-                        cout << (int)hex_node->value;
-                    else
-                        cout << "*";//useless?
-                }
-                else
-                    cout << "?";
+                printHexValue(hex_node, i, line_num, start);
                 break;
             }
         else
@@ -239,23 +245,7 @@ void printGridLine(hexLink* start, uint32_t line_num)
                 cout << "/";
                 break;
             case 1:
-                hex_node = getHexLinkByCoord({ (short)i, (short)line_num }, start);
-                if (hex_node == nullptr)
-                {
-                    cout << " ";
-                    break;
-                }
-                else if (hex_node->revealed)
-                {
-                    if (hex_node->value == 0)
-                        cout << " ";
-                    else if (hex_node->value < 7)
-                        cout << (int)hex_node->value;
-                    else
-                        cout << "*";
-                }
-                else
-                    cout << "?";
+                printHexValue(hex_node, i, line_num, start);
                 break;
             case 2:
                 cout << "\\";
@@ -349,6 +339,7 @@ int main()
     //Color and console resize stuff can be left for later. TODO;
 
     mine_num = height * width / 6;
+    //mine_num = 5;
 	spots_unrevealed = height * width - mine_num;
 
     //TODO, create the hexgrid by this point then print it.
@@ -389,7 +380,7 @@ int main()
                 mouse.dwButtonState &
                 FROM_LEFT_1ST_BUTTON_PRESSED)
             {
-                COORD hex_coord;
+                //COORD hex_coord;
                 // im so lost in pointers
 				hexLink* target = getHexLinkByCoord(mouse.dwMousePosition, start);
                 if (target != nullptr) {
