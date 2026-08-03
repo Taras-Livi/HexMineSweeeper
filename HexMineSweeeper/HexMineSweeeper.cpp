@@ -15,7 +15,7 @@ uint32_t mine_num;
 uint32_t spots_unrevealed;
 uint32_t c_width = 80;
 uint32_t c_height = 20;
-uint32_t width = 13;
+uint32_t width = 10;
 uint32_t height = 10;
 
 
@@ -29,6 +29,11 @@ struct hexLink
     hexLink* downR = nullptr;
     hexLink* down = nullptr;
     hexLink* downL = nullptr;
+#ifndef NDEBUG 
+    uint8_t row = 0;
+    uint8_t col = 0;
+#endif // !NDEBUG 
+
     // Proably would be more properly made if it had a creator for a adjacent hex that transfers the adjacents from the original hex
 };
 
@@ -44,19 +49,23 @@ hexLink* getHexLink(hexLink* start, uint32_t line_num, uint32_t col_num)
             if (hex_node->upR != nullptr)
                 hex_node = hex_node->upR;
             else
-                throw "col search error";
+                return nullptr;
+            //    throw "col search error";
         else
             if (hex_node->downR != nullptr)
                 hex_node = hex_node->downR;
             else
-                throw "col search error";
+                return nullptr;
+                //throw "col search error";
+        
     }
     for (uint32_t i = 0; i < line_num; i++)// this is wrong?
     {
         if (hex_node->down != nullptr)
             hex_node = hex_node->down;
         else
-            throw "row search error";
+            return nullptr;
+        //    throw "row search error";
 
     }
     return hex_node;
@@ -66,8 +75,10 @@ hexLink* getHexLinkByCoord(COORD coord, hexLink* start)
 {
     if (coord.Y == 0 or coord.Y == c_height - 1)
         return nullptr;
+    if (coord.X == 0 or coord.X == c_width - 1)
+        return nullptr;
     if (coord.X % 4 == 1 and coord.Y % 2 == 0 or coord.X % 4 == 3 and coord.Y % 2 == 1)
-        return getHexLink(start, (coord.Y - 1) / 2, (coord.X - 2) / 2);
+        return getHexLink(start, (coord.Y - 1) / 2, (coord.X - 1) / 2);
     return nullptr;
 }
 
@@ -113,37 +124,42 @@ Perhaps a function that takes two hexes and a direction, and links them together
 
 hexLink* gridInit()
 {
-    uint32_t mines_unplaced = mine_num;
-    uint32_t spots_left = width * height;
-
     hexLink* start = new hexLink(); // uppermost leftmost hexagon
     hexLink* current = start;
     hexLink* first = start;
     hexLink* upper = start;
-    for (uint32_t i = 0; i < height; i++) {
-        if (i > 0) {
+    for (uint32_t r = 0; r < height; r++) {
+        if (r > 0) {
             current = new hexLink();
 			current->up = upper;
 			upper->down = current;
+#ifndef NDEBUG
+            current->row = r;
+#endif // !NDEBUG
         }
         first = current;
-        for (uint32_t j = 1; j < width; j++) {
+        for (uint32_t c = 1; c < width; c++) {
             hexLink* new_hex = new hexLink();
-            if (j % 2 == 0) {
+            if (c % 2 == 0) {
                 current->downR = new_hex;
                 current->downR->upL = current; 
                 current = current->downR;
-                if (i > 0)
+
+                if (r > 0)
                     upper = upper->downR;
             }
             else {
                 current->upR = new_hex;
                 current->upR->downL = current;
                 current = current->upR;
-                if (i > 0)
+                if (r > 0)
                     upper = upper->upR;
             }
-            if (i > 0) {
+#ifndef NDEBUG
+            current->row = r;
+            current->col = c;
+#endif // !NDEBUG
+            if (r > 0) {// bit redundant at times
                 current->up = upper;
                 upper->down = current;
                 if (upper->downR != nullptr) {
@@ -159,6 +175,8 @@ hexLink* gridInit()
         upper = first;
     }
     //Traverse the grid and place mines in the hexes that are not decorative, and increment the values of the adjacent hexes
+    uint32_t mines_unplaced = mine_num;
+    uint32_t spots_left = width * height;
     current = start;
     for (uint32_t i = 0; i < height; i++)
     {
@@ -166,13 +184,13 @@ hexLink* gridInit()
         for (uint32_t j = 0; j < width; j++)
         {
             placeMine(current, mines_unplaced, spots_left);
-            if (j < width - 1) {
-                if (j % 2) {
+            //if (j < width - 1) {
+                if (j % 2 == 1) {
                     current = current->downR;
                 }
                 else {
                     current = current->upR;
-                }// could use ternary operator here.
+             //   }// could use ternary operator here.
             }
         }
         current = first->down;
@@ -339,7 +357,7 @@ int main()
     //Color and console resize stuff can be left for later. TODO;
 
     mine_num = height * width / 6;
-    //mine_num = 5;
+    //mine_num = 10;
 	spots_unrevealed = height * width - mine_num;
 
     //TODO, create the hexgrid by this point then print it.
